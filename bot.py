@@ -1,38 +1,40 @@
 import os
 import telebot
+from pathlib import Path
 
 # Получаем токен из переменной окружения Railway
 TOKEN = os.getenv("BOT_TOKEN")
 
-# Создаем бота
+if not TOKEN:
+    print("⚠️ ERROR: BOT_TOKEN не найден! Проверь Variables на Railway")
+    exit(1)
+
 bot = telebot.TeleBot(TOKEN)
 
-# Убираем старые вебхуки, чтобы не было ошибки 409
-bot.remove_webhook()
+# Проверка папки beats
+beats_path = Path("beats")
+if not beats_path.exists() or not any(beats_path.iterdir()):
+    print("⚠️ ВНИМАНИЕ: Папка 'beats' пуста или не найдена!")
+else:
+    print(f"✅ Папка 'beats' готова. Найдено {len(list(beats_path.iterdir()))} файлов.")
 
-# Папка beats (пример)
-BEATS_FOLDER = "beats"
-
-# Команда /start
+# Пример команды /start
 @bot.message_handler(commands=['start'])
-def start_handler(message):
-    bot.send_message(message.chat.id, "🔥 Привет! ST1F BOT онлайн!")
+def send_welcome(message):
+    bot.reply_to(message, "🔥 ST1F BOT запущен и готов к работе!")
 
-# Обработка текстовых сообщений
-@bot.message_handler(func=lambda message: True)
-def text_handler(message):
-    text = message.text.lower()
+# Основной запуск с обработкой 409
+def safe_polling():
+    while True:
+        try:
+            bot.polling(none_stop=True, skip_pending=True)
+        except telebot.apihelper.ApiTelegramException as e:
+            if "409" in str(e):
+                print("⚠️ 409 Conflict: другой экземпляр бота активен. Перезапуск через 5 сек...")
+                import time
+                time.sleep(5)
+            else:
+                raise e
 
-    if text == "beats":
-        # Проверяем есть ли файлы в папке beats
-        if os.path.exists(BEATS_FOLDER) and os.listdir(BEATS_FOLDER):
-            bot.send_message(message.chat.id, "🎵 Папка beats готова! Файлы на месте ✅")
-        else:
-            bot.send_message(message.chat.id, "⚠️ Папка beats пуста!")
-    else:
-        bot.send_message(message.chat.id, f"Ты написал: {message.text}")
-
-# Запуск бота
 if __name__ == "__main__":
-    print("🔥 ST1F BOT запущен")
-    bot.polling(none_stop=True, skip_pending=True)
+    safe_polling()
